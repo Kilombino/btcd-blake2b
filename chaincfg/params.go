@@ -223,6 +223,23 @@ type Params struct {
 	// coins (coinbase transactions) can be spent.
 	CoinbaseMaturity uint16
 
+	// CoinbaseMaturityLong is the depth a coinbase output must reach under the
+	// temporary long maturity rule. A zero value means the rule is not deployed
+	// on this network, in which case CoinbaseMaturity applies everywhere, which
+	// is what every Params value built before the rule existed will say.
+	//
+	// The three heights bound it: CoinbaseMaturityLongStartHeight is the first
+	// coinbase height the rule covers, CoinbaseMaturityLongEnforceHeight the
+	// first spending height at which consensus rejects an early spend, and
+	// CoinbaseMaturityLongReleaseHeight the first spending height at which the
+	// rule stops applying. Only consensus reads the heights; relay applies
+	// CoinbaseMaturityLong to every coinbase regardless of them. See
+	// coinbasematurity.go.
+	CoinbaseMaturityLong              int32
+	CoinbaseMaturityLongStartHeight   int32
+	CoinbaseMaturityLongEnforceHeight int32
+	CoinbaseMaturityLongReleaseHeight int32
+
 	// SubsidyReductionInterval is the interval of blocks before the subsidy
 	// is reduced.
 	SubsidyReductionInterval int32
@@ -317,14 +334,23 @@ var MainNetParams = Params{
 	},
 
 	// Chain parameters
-	GenesisBlock:             &genesisBlock,
-	GenesisHash:              &genesisHash,
-	PowLimit:                 mainPowLimit,
-	PowLimitBits:             0x1d00ffff,
-	BIP0034Height:            227931, // 000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8
-	BIP0065Height:            388381, // 000000000000000004c2b624ed5d7756c508d90fd0da2c7c679febfa6c4735f0
-	BIP0066Height:            363725, // 00000000000000000379eaa19dce8c9b722d46ae6a57c2f1a988119488b50931
-	CoinbaseMaturity:         100,
+	GenesisBlock:     &genesisBlock,
+	GenesisHash:      &genesisHash,
+	PowLimit:         mainPowLimit,
+	PowLimitBits:     0x1d00ffff,
+	BIP0034Height:    227931, // 000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8
+	BIP0065Height:    388381, // 000000000000000004c2b624ed5d7756c508d90fd0da2c7c679febfa6c4735f0
+	BIP0066Height:    363725, // 00000000000000000379eaa19dce8c9b722d46ae6a57c2f1a988119488b50931
+	CoinbaseMaturity: 100,
+
+	// The temporary long coinbase maturity rule. Taken from Bitcoin Knots
+	// v29.4.2.knots20260508rc2; the heights had already moved once before that,
+	// so re-check them against the release that ships before relying on them.
+	CoinbaseMaturityLong:              6480, // release - start, about 45 days
+	CoinbaseMaturityLongStartHeight:   973440,
+	CoinbaseMaturityLongEnforceHeight: 973440,
+	CoinbaseMaturityLongReleaseHeight: 979920,
+
 	SubsidyReductionInterval: 210000,
 	TargetTimespan:           time.Hour * 24 * 14, // 14 days
 	TargetTimePerBlock:       time.Minute * 10,    // 10 minutes
@@ -739,15 +765,24 @@ var TestNet4Params = Params{
 	},
 
 	// Chain parameters
-	GenesisBlock:             &testNet4GenesisBlock,
-	GenesisHash:              &testNet4GenesisHash,
-	PowLimit:                 testNet3PowLimit,
-	PowLimitBits:             0x1d00ffff,
-	EnforceBIP94:             true,
-	BIP0034Height:            1,
-	BIP0065Height:            1,
-	BIP0066Height:            1,
-	CoinbaseMaturity:         100,
+	GenesisBlock:     &testNet4GenesisBlock,
+	GenesisHash:      &testNet4GenesisHash,
+	PowLimit:         testNet3PowLimit,
+	PowLimitBits:     0x1d00ffff,
+	EnforceBIP94:     true,
+	BIP0034Height:    1,
+	BIP0065Height:    1,
+	BIP0066Height:    1,
+	CoinbaseMaturity: 100,
+
+	// As mainnet above, but doubly provisional: this chain's activation heights
+	// have been rewritten at every release candidate so far, so treat these as
+	// good only for the candidate named there.
+	CoinbaseMaturityLong:              6705, // release - start
+	CoinbaseMaturityLongStartHeight:   151406,
+	CoinbaseMaturityLongEnforceHeight: 151550,
+	CoinbaseMaturityLongReleaseHeight: 158111,
+
 	SubsidyReductionInterval: 210000,
 	TargetTimespan:           time.Hour * 24 * 14, // 14 days
 	TargetTimePerBlock:       time.Minute * 10,    // 10 minutes

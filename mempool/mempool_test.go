@@ -351,7 +351,10 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	for i := uint32(0); i < numOutputs; i++ {
 		outputs = append(outputs, txOutToSpendableOut(coinbase, i))
 	}
-	harness.chain.SetHeight(int32(chainParams.CoinbaseMaturity) + curHeight)
+	// Asked of the relay depth rather than CoinbaseMaturity, because that is
+	// what the pool now holds a coinbase spend to, and the point of this setup
+	// is to leave the coinbase one block short of spendable.
+	harness.chain.SetHeight(chainParams.RelayCoinbaseMaturity() + curHeight)
 	harness.chain.SetMedianTimePast(time.Now())
 
 	return &harness, outputs, nil
@@ -376,7 +379,7 @@ func (ctx *testContext) addCoinbaseTx(numOutputs uint32) *btcutil.Tx {
 	}
 
 	ctx.harness.chain.utxos.AddTxOuts(coinbase, coinbaseHeight)
-	maturity := int32(ctx.harness.chainParams.CoinbaseMaturity)
+	maturity := ctx.harness.chainParams.RelayCoinbaseMaturity()
 	ctx.harness.chain.SetHeight(coinbaseHeight + maturity)
 	ctx.harness.chain.SetMedianTimePast(time.Now())
 

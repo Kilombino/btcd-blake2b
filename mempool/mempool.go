@@ -1476,6 +1476,17 @@ func (mp *TxPool) checkMempoolAcceptance(tx *btcutil.Tx,
 		return nil, err
 	}
 
+	// Under the long coinbase maturity rule an upgraded node holds every
+	// coinbase spend to the long depth, whatever consensus would allow and
+	// whichever height the coinbase was mined at. Refuse it here rather than
+	// carry a transaction the rest of the network is going to drop. This is
+	// policy only: a block containing such a spend is still valid, which is why
+	// it is checked here and not in CheckTransactionInputs.
+	err = mp.validateCoinbaseRelayMaturity(nextBlockHeight, utxoView)
+	if err != nil {
+		return nil, err
+	}
+
 	// Don't allow non-standard transactions or non-standard inputs if the
 	// network parameters forbid their acceptance.
 	err = mp.validateStandardness(
@@ -1588,6 +1599,39 @@ func (mp *TxPool) validateSegWitDeployment(tx *btcutil.Tx) error {
 		"but segwit isn't active yet%s", tx.Hash(), simnetHint)
 
 	return txRuleError(wire.RejectNonstandard, str)
+}
+
+// validateCoinbaseRelayMaturity rejects a transaction spending a coinbase output that has
+// not reached the depth an upgraded node requires before it will relay the spend.
+//
+// It is deliberately blunter than consensus: it asks nothing about where the coinbase was
+// mined or whether the long maturity rule is active at this height, because the nodes this
+// one has to trade transactions with do not ask either. On a network where the rule is not
+// deployed this is the ordinary coinbase maturity and the check changes nothing.
+func (mp *TxPool) validateCoinbaseRelayMaturity(nextBlockHeight int32,
+	utxoView *blockchain.UtxoViewpoint) error {
+
+	required := mp.cfg.ChainParams.RelayCoinbaseMaturity()
+
+	for outpoint, utxo := range utxoView.Entries() {
+		if utxo == nil || utxo.IsSpent() || !utxo.IsCoinBase() {
+			continue
+		}
+
+		depth := nextBlockHeight - utxo.BlockHeight()
+		if depth >= required {
+			continue
+		}
+
+		str := fmt.Sprintf("transaction spends coinbase output %v "+
+			"from height %d at depth %d, below the %d blocks "+
+			"required for relay", outpoint, utxo.BlockHeight(),
+			depth, required)
+
+		return txRuleError(wire.RejectNonstandard, str)
+	}
+
+	return nil
 }
 
 // validateStandardness checks the transaction passes both transaction standard

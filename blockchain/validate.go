@@ -997,7 +997,14 @@ func CheckTransactionInputs(tx *btcutil.Tx, txHeight int32, utxoView *UtxoViewpo
 		if utxo.IsCoinBase() {
 			originHeight := utxo.BlockHeight()
 			blocksSincePrev := txHeight - originHeight
-			coinbaseMaturity := int32(chainParams.CoinbaseMaturity)
+
+			// Which depth is required depends on both heights: the
+			// long rule covers only coinbases mined at or after its
+			// start height, and only bites while it is active. Outside
+			// that it is the hundred blocks it has always been.
+			coinbaseMaturity := chainParams.RequiredCoinbaseMaturity(
+				originHeight, txHeight,
+			)
 			if blocksSincePrev < coinbaseMaturity {
 				str := fmt.Sprintf("tried to spend coinbase "+
 					"transaction output %v from height %v "+
