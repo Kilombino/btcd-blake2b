@@ -136,15 +136,40 @@ func findPrevTestNetDifficulty(startNode HeaderCtx, c ChainCtx) uint32 {
 func calcNextRequiredDifficulty(lastNode HeaderCtx, newBlockTime time.Time,
 	c ChainCtx) (uint32, error) {
 
+	bits, shiftable, err := calcNextRequiredDifficultyBase(
+		lastNode, newBlockTime, c,
+	)
+	if err != nil || !shiftable {
+		return bits, err
+	}
+
+	// The first block mined under BLAKE2b gets its target shifted once,
+	// as in Knots' GetNextWorkRequired. Its early returns (no retargeting,
+	// testnet's minimum difficulty) are not shifted there either.
+	params := c.ChainParams()
+	if params.Blake2bPowDeployed() &&
+		lastNode.Height()+1 == params.Blake2bHeight {
+
+		bits = applyBlake2bTargetShift(bits, params)
+	}
+	return bits, nil
+}
+
+// calcNextRequiredDifficultyBase is calcNextRequiredDifficulty before the
+// BLAKE2b activation shift. shiftable is false for the paths Knots returns
+// from early, without the shift.
+func calcNextRequiredDifficultyBase(lastNode HeaderCtx, newBlockTime time.Time,
+	c ChainCtx) (uint32, bool, error) {
+
 	// Emulate the same behavior as Bitcoin Core that for regtest there is
 	// no difficulty retargeting.
 	if c.ChainParams().PoWNoRetargeting {
-		return c.ChainParams().PowLimitBits, nil
+		return c.ChainParams().PowLimitBits, false, nil
 	}
 
 	// Genesis block.
 	if lastNode == nil {
-		return c.ChainParams().PowLimitBits, nil
+		return c.ChainParams().PowLimitBits, false, nil
 	}
 
 	// Return the previous block's difficulty requirements if this block
@@ -160,25 +185,25 @@ func calcNextRequiredDifficulty(lastNode HeaderCtx, newBlockTime time.Time,
 				time.Second)
 			allowMinTime := lastNode.Timestamp() + reductionTime
 			if newBlockTime.Unix() > allowMinTime {
-				return c.ChainParams().PowLimitBits, nil
+				return c.ChainParams().PowLimitBits, false, nil
 			}
 
 			// The block was mined within the desired timeframe, so
 			// return the difficulty for the last block which did
 			// not have the special minimum difficulty rule applied.
-			return findPrevTestNetDifficulty(lastNode, c), nil
+			return findPrevTestNetDifficulty(lastNode, c), true, nil
 		}
 
 		// For the main network (or any unrecognized networks), simply
 		// return the previous block's difficulty requirements.
-		return lastNode.Bits(), nil
+		return lastNode.Bits(), true, nil
 	}
 
 	// Get the block node at the previous retarget (targetTimespan days
 	// worth of blocks).
 	firstNode := lastNode.RelativeAncestorCtx(c.BlocksPerRetarget() - 1)
 	if firstNode == nil {
-		return 0, AssertError("unable to obtain previous retarget block")
+		return 0, false, AssertError("unable to obtain previous retarget block")
 	}
 
 	// Limit the amount of adjustment that can occur to the previous
@@ -227,7 +252,7 @@ func calcNextRequiredDifficulty(lastNode HeaderCtx, newBlockTime time.Time,
 		time.Duration(adjustedTimespan)*time.Second,
 		c.ChainParams().TargetTimespan)
 
-	return newTargetBits, nil
+	return newTargetBits, true, nil
 }
 
 // CalcNextRequiredDifficulty calculates the required difficulty for the block

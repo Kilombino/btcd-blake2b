@@ -231,6 +231,12 @@ const (
 	// error exists so nothing silently checks a BLAKE2b block id against a
 	// SHA256d target.
 	ErrUnsupportedProofOfWork
+
+	// ErrBadHeaderV2 indicates a header that breaks a BLAKE2b-chain header
+	// rule: a v2 header below the BLAKE2b height or a classic one at or
+	// above it, a v2 header whose committed height is not its height, or
+	// reserved flag bits set.
+	ErrBadHeaderV2
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
@@ -280,6 +286,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrPrevBlockNotBest:          "ErrPrevBlockNotBest",
 	ErrTimewarpAttack:            "ErrTimewarpAttack",
 	ErrUnsupportedProofOfWork:    "ErrUnsupportedProofOfWork",
+	ErrBadHeaderV2:               "ErrBadHeaderV2",
 }
 
 // String returns the ErrorCode as a human-readable name.

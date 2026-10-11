@@ -315,15 +315,18 @@ func CheckTransactionSanity(tx *btcutil.Tx) error {
 //   - BFNoPoWCheck: The check to ensure the block hash is less than the target
 //     difficulty is not performed.
 func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags BehaviorFlags) error {
-	// A v2 header's block id is a BLAKE2b construction with a one-off
-	// target shift at activation; comparing it against a SHA256d-style
-	// target here would be wrong in both directions. Refuse rather than
-	// guess. Consumers of this fork rely on a Bitcoin Knots backend to
-	// validate proof of work.
-	if header.IsV2() {
-		return ruleError(ErrUnsupportedProofOfWork, "BLAKE2b (header v2) "+
-			"proof of work is not validated by this build; a Bitcoin "+
-			"Knots backend must validate it")
+	// A v2 header's block id is a BLAKE2b construction (wire/blake2b.go),
+	// and Bitcoin Knots checks it against the claimed target exactly as it
+	// checks a SHA256d id: CheckBlockHeader calls CheckProofOfWork with
+	// GetHash() either way. The one-off target shift at the BLAKE2b
+	// activation belongs to the difficulty rules (calcNextRequiredDifficulty),
+	// not to this comparison. Whether a v2 header is allowed at its height
+	// at all is a contextual question, answered in CheckBlockHeaderContext.
+	if header.IsV2() && header.Flags&header2ReservedFlags != 0 {
+		// Knots' bad-flags-highbits: the top two bits of flags are
+		// reserved for a future hard fork.
+		return ruleError(ErrBadHeaderV2, "header v2 has reserved flag "+
+			"bits set")
 	}
 
 	// The target difficulty must be larger than zero.
@@ -705,6 +708,12 @@ func CheckBlockHeaderContext(header *wire.BlockHeader, prevNode HeaderCtx,
 	blockHeight := prevNode.Height() + 1
 
 	params := c.ChainParams()
+
+	// Which proof of work the block must carry at this height (Knots'
+	// bad-version-sha256d, bad-version-blake2b and bad-header-height).
+	if err := checkHeaderV2Context(header, blockHeight, params); err != nil {
+		return err
+	}
 
 	fastAdd := flags&BFFastAdd == BFFastAdd
 	if !fastAdd {

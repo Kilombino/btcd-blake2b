@@ -213,6 +213,17 @@ type Params struct {
 	// this also enforces the block storm mitigation.
 	EnforceBIP94 bool
 
+	// Blake2bHeight is the first height whose block must be a 164-byte
+	// "header v2" with BLAKE2b proof of work (Bitcoin Knots v29.4.1+'s
+	// Blake2bHeight). Zero means the network has no BLAKE2b proof of work
+	// configured; a v2 header is then refused instead of checked. See
+	// blake2bpow.go.
+	Blake2bHeight int32
+
+	// Blake2bTargetShift is the one-off left shift of the target applied to
+	// the first block mined under BLAKE2b (Knots' Blake2bTargetShift).
+	Blake2bTargetShift uint
+
 	// These fields define the block heights at which the specified softfork
 	// BIP became active.
 	BIP0034Height int32
@@ -350,6 +361,10 @@ var MainNetParams = Params{
 	CoinbaseMaturityLongStartHeight:   973440,
 	CoinbaseMaturityLongEnforceHeight: 973440,
 	CoinbaseMaturityLongReleaseHeight: 979920,
+
+	// BLAKE2b proof of work from block 961640 (Knots v29.4.2).
+	Blake2bHeight:      961640,
+	Blake2bTargetShift: 22,
 
 	SubsidyReductionInterval: 210000,
 	TargetTimespan:           time.Hour * 24 * 14, // 14 days
@@ -765,15 +780,19 @@ var TestNet4Params = Params{
 	},
 
 	// Chain parameters
-	GenesisBlock:     &testNet4GenesisBlock,
-	GenesisHash:      &testNet4GenesisHash,
-	PowLimit:         testNet3PowLimit,
-	PowLimitBits:     0x1d00ffff,
-	EnforceBIP94:     true,
-	BIP0034Height:    1,
-	BIP0065Height:    1,
-	BIP0066Height:    1,
-	CoinbaseMaturity: 100,
+	GenesisBlock: &testNet4GenesisBlock,
+	GenesisHash:  &testNet4GenesisHash,
+	PowLimit:     testNet3PowLimit,
+	PowLimitBits: 0x1d00ffff,
+	EnforceBIP94: true,
+
+	// BLAKE2b proof of work from block 150308 (Knots v29.4.2's testnet4).
+	Blake2bHeight:      150308,
+	Blake2bTargetShift: 20,
+	BIP0034Height:      1,
+	BIP0065Height:      1,
+	BIP0066Height:      1,
+	CoinbaseMaturity:   100,
 
 	// As mainnet above, but doubly provisional: this chain's activation heights
 	// have been rewritten at every release candidate so far, so treat these as
