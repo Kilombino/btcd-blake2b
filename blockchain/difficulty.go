@@ -144,10 +144,12 @@ func calcNextRequiredDifficulty(lastNode HeaderCtx, newBlockTime time.Time,
 	}
 
 	// The first block mined under BLAKE2b gets its target shifted once,
-	// as in Knots' GetNextWorkRequired. Its early returns (no retargeting,
-	// testnet's minimum difficulty) are not shifted there either.
+	// as in Knots' GetNextWorkRequired. Its one early return, testnet's
+	// minimum difficulty, is not shifted there either. Knots' no-retarget
+	// return sits in CalculateNextWorkRequired and is shifted like any other
+	// result; the shift caps at the proof of work limit.
 	params := c.ChainParams()
-	if params.Blake2bPowDeployed() &&
+	if params.Blake2bPowDeployed() && lastNode != nil &&
 		lastNode.Height()+1 == params.Blake2bHeight {
 
 		bits = applyBlake2bTargetShift(bits, params)
@@ -164,7 +166,7 @@ func calcNextRequiredDifficultyBase(lastNode HeaderCtx, newBlockTime time.Time,
 	// Emulate the same behavior as Bitcoin Core that for regtest there is
 	// no difficulty retargeting.
 	if c.ChainParams().PoWNoRetargeting {
-		return c.ChainParams().PowLimitBits, false, nil
+		return c.ChainParams().PowLimitBits, true, nil
 	}
 
 	// Genesis block.
