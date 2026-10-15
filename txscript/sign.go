@@ -6,6 +6,7 @@ package txscript
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
@@ -16,6 +17,25 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
+// checkSigHashSingle returns an error if hashType is SigHashSingle and tx has
+// no output at index idx. A signature for such an input commits to no output
+// at all, as legacy inputs sign the constant hash one and segwit v0 inputs
+// zero out hashOutputs. It would stay valid however the outputs are changed
+// while the matching output remains absent, letting anyone holding it
+// redirect the funds, so it must not be produced. The mask leaves the
+// unified bit out, so SIGHASH_SINGLE|SIGHASH_UNIFIED is caught as well,
+// though the unified hash refuses that case on its own.
+func checkSigHashSingle(tx *wire.MsgTx, idx int, hashType SigHashType) error {
+	if hashType&sigHashMask != SigHashSingle || idx < len(tx.TxOut) {
+		return nil
+	}
+
+	str := fmt.Sprintf("attempt to sign single input at index %d >= %d "+
+		"outputs", idx, len(tx.TxOut))
+
+	return scriptError(ErrInvalidSigHashSingleIndex, str)
+}
+
 // RawTxInWitnessSignature returns the serialized ECDA signature for the input
 // idx of the given transaction, with the hashType appended to it. This
 // function is identical to RawTxInSignature, however the signature generated
@@ -23,6 +43,10 @@ import (
 func RawTxInWitnessSignature(tx *wire.MsgTx, sigHashes *TxSigHashes, idx int,
 	amt int64, subScript []byte, hashType SigHashType,
 	key *btcec.PrivateKey) ([]byte, error) {
+
+	if err := checkSigHashSingle(tx, idx, hashType); err != nil {
+		return nil, err
+	}
 
 	hash, err := calcWitnessSignatureHashRaw(subScript, sigHashes, hashType, tx,
 		idx, amt)
@@ -179,6 +203,10 @@ func RawTxInTapscriptSignature(tx *wire.MsgTx, sigHashes *TxSigHashes, idx int,
 // the given transaction, with hashType appended to it.
 func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
 	hashType SigHashType, key *btcec.PrivateKey) ([]byte, error) {
+
+	if err := checkSigHashSingle(tx, idx, hashType); err != nil {
+		return nil, err
+	}
 
 	hash, err := CalcSignatureHash(subScript, hashType, tx, idx)
 	if err != nil {
