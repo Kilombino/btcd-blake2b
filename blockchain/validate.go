@@ -1394,6 +1394,10 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *btcutil.Block) error {
 	if err != nil {
 		return err
 	}
+	err = CheckHeaderV2Sanity(&header, b.chainParams)
+	if err != nil {
+		return err
+	}
 
 	err = b.checkBlockContext(block, tip, flags)
 	if err != nil {

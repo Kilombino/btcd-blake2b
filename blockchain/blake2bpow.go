@@ -73,6 +73,30 @@ func checkHeaderV2Context(header *wire.BlockHeader, height int32,
 	return nil
 }
 
+// CheckHeaderV2Sanity is the context-free part of Knots' CheckBlockHeader for
+// BLAKE2b headers: a v2 header must commit to a height at which BLAKE2b proof
+// of work is required (Knots' bad-version-sha256d), and a network without
+// BLAKE2b proof of work configured takes no v2 header. It needs only the
+// header, so it runs where the block's real height is not known yet (an
+// orphan, a header out of order); checkHeaderV2Context then checks the
+// committed height against the real one.
+func CheckHeaderV2Sanity(header *wire.BlockHeader, params *chaincfg.Params) error {
+	if !header.IsV2() {
+		return nil
+	}
+	if !params.Blake2bPowDeployed() {
+		return ruleError(ErrUnsupportedProofOfWork, "BLAKE2b (header v2) "+
+			"proof of work is not configured for network "+params.Name)
+	}
+	if !params.IsBlake2bHeight(header.Height) {
+		str := fmt.Sprintf("header v2 commits to height %d: blocks require "+
+			"SHA256d proof of work until height %d", header.Height,
+			params.Blake2bHeight)
+		return ruleError(ErrBadHeaderV2, str)
+	}
+	return nil
+}
+
 // applyBlake2bTargetShift is Knots' ApplyBlake2bTargetShift: the target of the
 // first block mined under BLAKE2b, from the one the usual rules give.
 func applyBlake2bTargetShift(bits uint32, params *chaincfg.Params) uint32 {

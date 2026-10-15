@@ -3720,6 +3720,11 @@ func verifyChain(s *rpcServer, level, depth int32) error {
 		if level > 0 {
 			err := blockchain.CheckBlockSanity(block,
 				s.cfg.ChainParams.PowLimit, s.cfg.TimeSource)
+			if err == nil {
+				err = blockchain.CheckHeaderV2Sanity(
+					&block.MsgBlock().Header, s.cfg.ChainParams,
+				)
+			}
 			if err != nil {
 				rpcsLog.Errorf("Verify is unable to validate "+
 					"block at hash %v height %d: %v",

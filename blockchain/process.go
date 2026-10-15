@@ -169,6 +169,10 @@ func (b *BlockChain) ProcessBlock(block *btcutil.Block, flags BehaviorFlags) (bo
 	if err != nil {
 		return false, false, err
 	}
+	err = CheckHeaderV2Sanity(&block.MsgBlock().Header, b.chainParams)
+	if err != nil {
+		return false, false, err
+	}
 
 	// Find the previous checkpoint and perform some additional checks based
 	// on the checkpoint.  This provides a few nice properties such as

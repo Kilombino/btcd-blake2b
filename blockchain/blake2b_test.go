@@ -249,3 +249,35 @@ func TestBlake2bHeaderContext(t *testing.T) {
 		t.Fatalf("classic header without BLAKE2b configured: %v", err)
 	}
 }
+
+// TestCheckHeaderV2Sanity pins the context-free rule Knots applies in
+// CheckBlockHeader: a v2 header committing to the activation height is
+// accepted, one committing to the block below it is refused (bad-version-
+// sha256d), and a network without BLAKE2b configured takes no v2 header.
+func TestCheckHeaderV2Sanity(t *testing.T) {
+	params := &chaincfg.MainNetParams
+	v2 := mustHeader(t, activationHeaderRaw)
+	if v2.Height != 961640 {
+		t.Fatalf("the activation header commits to %d", v2.Height)
+	}
+
+	if err := CheckHeaderV2Sanity(v2, params); err != nil {
+		t.Fatalf("v2 header committing to the activation height: %v", err)
+	}
+	below := *v2
+	below.Height = 961639
+	if code, _ := ruleCode(CheckHeaderV2Sanity(&below, params)); code != ErrBadHeaderV2 {
+		t.Fatalf("v2 header committing to the block below the activation: got %v, want ErrBadHeaderV2", code)
+	}
+
+	classic := chaincfg.MainNetParams.GenesisBlock.Header
+	if err := CheckHeaderV2Sanity(&classic, params); err != nil {
+		t.Fatalf("classic header: %v", err)
+	}
+
+	none := chaincfg.MainNetParams
+	none.Blake2bHeight = 0
+	if code, _ := ruleCode(CheckHeaderV2Sanity(v2, &none)); code != ErrUnsupportedProofOfWork {
+		t.Fatalf("v2 header without BLAKE2b configured: got %v, want ErrUnsupportedProofOfWork", code)
+	}
+}
